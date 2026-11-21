@@ -134,8 +134,8 @@ class HybridSearchEngine:
         if self.chroma_client:
             try:
                 ids = [p["product_id"] for p in products]
-                docs = [f"{p['title']} {p['description']} {p['category']} {p['brand']}" for p in products]
-                metadatas = [{"category": p["category"], "brand": p["brand"], "price": float(p["price"])} for p in products]
+                docs = [f"{p.get('title') or p.get('name', '')} {p.get('description', '')} {p.get('category', '')} {p.get('brand', '')}" for p in products]
+                metadatas = [{"category": str(p.get("category", "")), "brand": str(p.get("brand", "")), "price": float(p.get("price") if p.get("price") is not None else p.get("price_inr", 0.0))} for p in products]
                 self.collection.upsert(ids=ids, documents=docs, metadatas=metadatas)
             except Exception:
                 pass
@@ -153,8 +153,23 @@ class HybridSearchEngine:
         # 1. BM25 / FTS Search
         fts_candidates = self.db.search_fts(query, limit=top_k * 2)
 
-        # 2. Vector Search
-        vector_candidates = self.vector_index.search(query, top_k=top_k * 2)
+        # 2. Vector Search (ChromaDB with SimpleVectorIndex fallback)
+        vector_candidates = []
+        if self.chroma_client:
+            try:
+                chroma_count = self.collection.count()
+                if chroma_count > 0:
+                    c_res = self.collection.query(query_texts=[query], n_results=min(top_k * 2, chroma_count))
+                    if c_res and c_res.get("ids") and c_res["ids"][0]:
+                        for pid in c_res["ids"][0]:
+                            item = self.db.get_product(pid)
+                            if item:
+                                vector_candidates.append(item)
+            except Exception:
+                pass
+
+        if not vector_candidates:
+            vector_candidates = self.vector_index.search(query, top_k=top_k * 2)
 
         # 3. Reciprocal Rank Fusion (RRF)
         # RRF_Score = sum(1 / (k + rank))
