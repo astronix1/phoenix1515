@@ -4,8 +4,12 @@ from contextlib import asynccontextmanager
 import json
 import os
 from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+
+load_dotenv()
+
 
 from app.db import DatabaseManager
 from app.llm import LLMClient
@@ -39,18 +43,46 @@ async def lifespan(app: FastAPI):
     # Check if DB has products; if empty, load default sample data
     products = db.get_all_products(limit=5)
     if not products:
-        sample_path = os.path.join(os.path.dirname(__file__), "..", "data", "catalogue.json")
-        if os.path.exists(sample_path):
-            with open(sample_path, "r", encoding="utf-8") as f:
-                catalogue = json.load(f)
-                search_engine.upsert_products(catalogue)
+        for fname in ["products.json", "catalogue.json"]:
+            sample_path = os.path.join(os.path.dirname(__file__), "..", "data", fname)
+            if os.path.exists(sample_path):
+                with open(sample_path, "r", encoding="utf-8") as f:
+                    catalogue = json.load(f)
+                    search_engine.upsert_products(catalogue)
+                break
 
         shoppers_path = os.path.join(os.path.dirname(__file__), "..", "data", "shoppers.json")
         if os.path.exists(shoppers_path):
             with open(shoppers_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                db.upsert_shoppers(data.get("shoppers", []))
-                db.upsert_orders(data.get("orders", []))
+                raw_data = json.load(f)
+                if isinstance(raw_data, list):
+                    shoppers_list = []
+                    orders_list = []
+                    for s in raw_data:
+                        cid = s.get("customer_id") or s.get("shopper_id")
+                        shoppers_list.append({
+                            "customer_id": cid,
+                            "name": s.get("name", "Shopper"),
+                            "email": s.get("email", f"{cid.lower()}@example.com"),
+                            "loyalty_tier": s.get("loyalty_tier", "Gold"),
+                            "address": s.get("address", ""),
+                        })
+                        for o in s.get("orders", []):
+                            orders_list.append({
+                                "order_id": o.get("order_id"),
+                                "customer_id": cid,
+                                "product_id": o.get("product_id"),
+                                "quantity": o.get("quantity") or o.get("qty", 1),
+                                "total_amount": float(o.get("total_amount", 0.0)),
+                                "order_status": o.get("order_status") or o.get("status", "Delivered"),
+                                "order_date": o.get("order_date") or o.get("ordered_at", "2026-11-01"),
+                                "tracking_number": o.get("tracking_number", ""),
+                            })
+                    db.upsert_shoppers(shoppers_list)
+                    db.upsert_orders(orders_list)
+                else:
+                    db.upsert_shoppers(raw_data.get("shoppers", []))
+                    db.upsert_orders(raw_data.get("orders", []))
 
     yield
 

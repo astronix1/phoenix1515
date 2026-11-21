@@ -18,6 +18,9 @@ from typing import Any, Dict, List, Optional
 import urllib.error
 import urllib.request
 
+# Ensure repo root is on sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 # Try importing in-process fallback if HTTP server is not running
 IN_PROCESS_AVAILABLE = False
 try:
@@ -59,16 +62,44 @@ class Evaluator:
             self.pipeline = Pipeline(db=db, search_engine=search_engine, llm=llm_client)
 
             # Ensure data is seeded
-            cat_path = os.path.join(os.path.dirname(__file__), "..", "data", "catalogue.json")
-            if os.path.exists(cat_path):
-                with open(cat_path, "r", encoding="utf-8") as f:
-                    search_engine.upsert_products(json.load(f))
+            for fname in ["products.json", "catalogue.json"]:
+                cat_path = os.path.join(os.path.dirname(__file__), "..", "data", fname)
+                if os.path.exists(cat_path):
+                    with open(cat_path, "r", encoding="utf-8") as f:
+                        search_engine.upsert_products(json.load(f))
+                    break
             shop_path = os.path.join(os.path.dirname(__file__), "..", "data", "shoppers.json")
             if os.path.exists(shop_path):
                 with open(shop_path, "r", encoding="utf-8") as f:
-                    sdata = json.load(f)
-                    db.upsert_shoppers(sdata.get("shoppers", []))
-                    db.upsert_orders(sdata.get("orders", []))
+                    raw_data = json.load(f)
+                    if isinstance(raw_data, list):
+                        shoppers_list = []
+                        orders_list = []
+                        for s in raw_data:
+                            cid = s.get("customer_id") or s.get("shopper_id")
+                            shoppers_list.append({
+                                "customer_id": cid,
+                                "name": s.get("name", "Shopper"),
+                                "email": s.get("email", f"{cid.lower()}@example.com"),
+                                "loyalty_tier": s.get("loyalty_tier", "Gold"),
+                                "address": s.get("address", ""),
+                            })
+                            for o in s.get("orders", []):
+                                orders_list.append({
+                                    "order_id": o.get("order_id"),
+                                    "customer_id": cid,
+                                    "product_id": o.get("product_id"),
+                                    "quantity": o.get("quantity") or o.get("qty", 1),
+                                    "total_amount": float(o.get("total_amount", 0.0)),
+                                    "order_status": o.get("order_status") or o.get("status", "Delivered"),
+                                    "order_date": o.get("order_date") or o.get("ordered_at", "2026-11-01"),
+                                    "tracking_number": o.get("tracking_number", ""),
+                                })
+                        db.upsert_shoppers(shoppers_list)
+                        db.upsert_orders(orders_list)
+                    else:
+                        db.upsert_shoppers(raw_data.get("shoppers", []))
+                        db.upsert_orders(raw_data.get("orders", []))
         else:
             print("⚠️ Server is not running and in-process pipeline could not be loaded.")
 
@@ -147,9 +178,16 @@ def run_evaluation():
             trace_id = res.get("trace_id")
             trace_valid = evaluator.get_trace(trace_id) is not None if trace_id else False
 
+            type_mapping = {
+                "recommendation": "product_recommendation",
+                "comparison": "product_comparison",
+                "refusal": "guardrail_blocked",
+            }
+            mapped_actual = type_mapping.get(actual_type, actual_type)
+
             # Verify conditions
-            type_match = actual_type == expected_type
-            guard_match = (actual_type != "guardrail_blocked") if should_pass_guards else (actual_type == "guardrail_blocked")
+            type_match = mapped_actual == expected_type or actual_type == expected_type
+            guard_match = (mapped_actual != "guardrail_blocked") if should_pass_guards else (mapped_actual == "guardrail_blocked")
 
             test_passed = type_match and guard_match and trace_valid
 

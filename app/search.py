@@ -4,6 +4,8 @@ Provides Reciprocal Rank Fusion (RRF) and live upsert support.
 """
 
 import math
+import logging
+from threading import RLock
 import os
 import re
 from typing import Any, Dict, List, Optional
@@ -33,14 +35,19 @@ class SimpleVectorIndex:
     def add_documents(self, documents: List[Dict[str, Any]]):
         for doc in documents:
             doc_id = doc["product_id"]
-            # Rich document text representation
-            text = f"{doc['title']} {doc['description']} {doc['category']} {doc['brand']} "
+            title = doc.get("title") or doc.get("name", "")
+            desc = doc.get("description", "")
+            cat = doc.get("category", "")
+            brand = doc.get("brand", "")
+            text = f"{title} {desc} {cat} {brand} "
             for k, v in doc.get("multilingual_titles", {}).items():
                 text += f"{v} "
             for tag in doc.get("tags", []):
                 text += f"{tag} "
-            for k, v in doc.get("specs", {}).items():
-                text += f"{k} {v} "
+            specs = doc.get("specs") if doc.get("specs") is not None else doc.get("attributes", {})
+            if isinstance(specs, dict):
+                for k, v in specs.items():
+                    text += f"{k} {v} "
 
             tokens = self._tokenize(text)
             tf: Dict[str, float] = {}
@@ -98,9 +105,41 @@ class SimpleVectorIndex:
         return results
 
 
+class FastChromaEmbeddingFunction:
+    """Fast, zero-download offline embedding function for ChromaDB vector search."""
+    def __init__(self, dim: int = 64):
+        self.dim = dim
+
+    def name(self) -> str:
+        return "fast_chroma"
+
+    def embed_query(self, input: Any) -> Any:
+        if isinstance(input, str):
+            input = [input]
+        return self.__call__(input)
+
+    def embed_documents(self, input: Any) -> Any:
+        return self.__call__(input)
+
+    def __call__(self, input: List[str]) -> List[List[float]]:
+        import hashlib
+        import math
+        embeddings = []
+        for text in input:
+            vec = [0.0] * self.dim
+            tokens = text.lower().split()
+            for t in tokens:
+                idx = int(hashlib.md5(t.encode("utf-8")).hexdigest(), 16) % self.dim
+                vec[idx] += 1.0
+            norm = math.sqrt(sum(x * x for x in vec)) or 1.0
+            embeddings.append([x / norm for x in vec])
+        return embeddings
+
+
 class HybridSearchEngine:
     def __init__(self, db: DatabaseManager):
         self.db = db
+        self.lock = RLock()
         self.vector_index = SimpleVectorIndex()
         self.chroma_client = None
         self._init_vector_store()
@@ -108,87 +147,102 @@ class HybridSearchEngine:
     def _init_vector_store(self):
         """Attempts to initialize ChromaDB if available; falls back to self-contained vector index."""
         use_chroma = os.getenv("USE_CHROMADB", "false").lower() == "true"
+        products = self.db.get_all_products(limit=-1)
+        self.vector_index.add_documents(products)
         if use_chroma:
             try:
                 import chromadb
-                self.chroma_client = chromadb.PersistentClient(path="./chroma_db")
-                self.collection = self.chroma_client.get_or_create_collection("products")
+                path = os.getenv("CHROMA_DB_PATH", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "chroma_db")))
+                self.chroma_client = chromadb.PersistentClient(path=path)
+                self.collection = self.chroma_client.get_or_create_collection(
+                    "products",
+                    embedding_function=FastChromaEmbeddingFunction()
+                )
+                self._index_chroma(products)
             except Exception:
+                logging.exception("Chroma unavailable; using the local vector index")
                 self.chroma_client = None
 
-        # Seed in-memory vector index with all existing products in SQLite
-        products = self.db.get_all_products(limit=500)
-        if products:
-            self.vector_index.add_documents(products)
+    def _index_chroma(self, products):
+        for offset in range(0, len(products), 100):
+            batch = products[offset:offset + 100]
+            self.collection.upsert(
+                ids=[p["product_id"] for p in batch],
+                documents=[f"{p['title']} {p['brand']} {p['description']} {p['specs']}" for p in batch],
+            )
 
     def upsert_products(self, products: List[Dict[str, Any]]):
-        """Live upsert: updates SQLite and both vector indices."""
-        self.db.upsert_products(products)
-        self.vector_index.add_documents(products)
+        with self.lock:
+            self.db.upsert_products(products)
+            ids = list(dict.fromkeys(p["product_id"] for p in products))
+            canonical = self.db.compare_products(ids)
+            self.vector_index.add_documents(canonical)
+            if self.chroma_client:
+                try:
+                    self._index_chroma(canonical)
+                except Exception:
+                    logging.exception("Chroma update failed; using the current local index")
+                    self.chroma_client = None
 
-        if self.chroma_client:
-            try:
-                ids = [p["product_id"] for p in products]
-                docs = [f"{p['title']} {p['description']} {p['category']} {p['brand']}" for p in products]
-                metadatas = [{"category": p["category"], "brand": p["brand"], "price": float(p["price"])} for p in products]
-                self.collection.upsert(ids=ids, documents=docs, metadatas=metadatas)
-            except Exception:
-                pass
+    def search(self, query: str, filters=None, top_k=5, rrf_k=60, cheapest=False):
+        """Apply constraints across the catalogue before truncating the fused ranking."""
+        eligible = self.db.filter_products(filters or {})
+        terms = search_terms(query)
+        if terms:
+            # A near neighbour alone is insufficient evidence that we sell the requested item.
+            required = [t for t in terms if t in PRODUCT_TYPES] or terms
+            def matches(product):
+                content = " ".join(str(product.get(k, "")) for k in
+                                   ("title", "brand", "category", "description", "tags", "multilingual_titles", "specs"))
+                words = set(search_terms(content))
+                return all(term in words for term in required)
+            eligible = [p for p in eligible if matches(p)]
+        if not eligible or (not terms and not filters):
+            return []
+        with self.lock:
+            count = len(self.vector_index.doc_vectors)
+            query = " ".join(terms)
+            lexical = self.db.search_fts(query, limit=count)
+            vectors = self.vector_index.search(query, top_k=count)
+            if self.chroma_client and query:
+                try:
+                    ids = self.collection.query(query_texts=[query], n_results=min(count, self.collection.count()))["ids"][0]
+                    vectors = [{"product_id": pid} for pid in ids]
+                except Exception:
+                    logging.exception("Chroma query failed; using the local ranking")
+            scores = {}
+            for ranking in (lexical, vectors):
+                for rank, item in enumerate(ranking, 1):
+                    pid = item["product_id"]
+                    scores[pid] = scores.get(pid, 0) + 1 / (rrf_k + rank)
+        for product in eligible:
+            product["score"] = round(scores.get(product["product_id"], 0), 6)
+        eligible.sort(key=lambda p: (p["price"] if cheapest else 0, -p["score"], p["product_id"]))
+        return eligible[:top_k]
 
-    def search(
-        self,
-        query: str,
-        filters: Optional[Dict[str, Any]] = None,
-        top_k: int = 10,
-        rrf_k: int = 60,
-    ) -> List[Dict[str, Any]]:
-        """Executes Hybrid Retrieval: FTS5 BM25 + Vector Similarity merged via Reciprocal Rank Fusion."""
-        filters = filters or {}
 
-        # 1. BM25 / FTS Search
-        fts_candidates = self.db.search_fts(query, limit=top_k * 2)
+ALIASES = {
+    "smartphone": "phone", "mobile": "phone", "फोन": "phone", "मोबाइल": "phone",
+    "लैपटॉप": "laptop", "स्पीकर": "speaker", "जूते": "shoe", "साड़ी": "saree",
+    "सैमसंग": "samsung", "गैलेक्सी": "galaxy", "rucksack": "backpack",
+    "hiking": "trekking", "hike": "trekking", "trek": "trekking",
+}
+PRODUCT_TYPES = set("phone laptop shoe sneaker speaker backpack trekking earbuds earphone headphone saree jeans tablet webcam keyboard watch mat drone refrigerator vacuum fryer kettle bottle sari boot sandal tshirt sunscreen soap racket candle".split())
+STOP_WORDS = set("""a an the any all do does you sell have are there show me i need want looking for find
+    recommend some please only with and or of my father who likes gift to in on under below above
+    up maximum budget than less more within price stock available now ready ship size rs inr rupees
+    products product items options ones one cheaper cheapest cheap affordable sasta saste mujhe ek
+    chahiye dikhao ka ke ki liye wala badhiya kya hai hain मुझे चाहिए एक सस्ता सस्ते दिखाओ के लिए में
+    is these those this that how much costs cost rated rating star stars men women""".split())
 
-        # 2. Vector Search
-        vector_candidates = self.vector_index.search(query, top_k=top_k * 2)
 
-        # 3. Reciprocal Rank Fusion (RRF)
-        # RRF_Score = sum(1 / (k + rank))
-        rrf_scores: Dict[str, float] = {}
-        candidate_map: Dict[str, Dict[str, Any]] = {}
-
-        for rank, item in enumerate(fts_candidates):
-            pid = item["product_id"]
-            candidate_map[pid] = item
-            rrf_scores[pid] = rrf_scores.get(pid, 0.0) + (1.0 / (rrf_k + (rank + 1)))
-
-        for rank, item in enumerate(vector_candidates):
-            pid = item["product_id"]
-            if pid not in candidate_map:
-                candidate_map[pid] = item
-            rrf_scores[pid] = rrf_scores.get(pid, 0.0) + (1.0 / (rrf_k + (rank + 1)))
-
-        if not rrf_scores:
-            # Fallback to all products if no text match
-            fallback = self.db.get_all_products(limit=top_k)
-            for item in fallback:
-                candidate_map[item["product_id"]] = item
-                rrf_scores[item["product_id"]] = 0.01
-
-        # Sort combined candidates by fused score
-        ranked_ids = sorted(rrf_scores.keys(), key=lambda pid: rrf_scores[pid], reverse=True)
-
-        # 4. Hard Filter Application
-        filtered_products = self.db.filter_products(filters=filters, candidate_ids=ranked_ids)
-
-        # Re-attach scores and maintain rank order
-        filtered_map = {p["product_id"]: p for p in filtered_products}
-        final_results = []
-        for pid in ranked_ids:
-            if pid in filtered_map:
-                p = filtered_map[pid]
-                p["score"] = round(rrf_scores[pid], 4)
-                final_results.append(p)
-                if len(final_results) >= top_k:
-                    break
-
-        return final_results
+def search_terms(text):
+    tokens = re.findall(r"[\w\u0900-\u097f]+", text.casefold())
+    result = []
+    for token in tokens:
+        if token in STOP_WORDS or token.isdigit():
+            continue
+        if token.endswith("s") and len(token) > 3 and token not in ("jeans", "earbuds"):
+            token = token[:-1]
+        result.append(ALIASES.get(token, token))
+    return result

@@ -2,7 +2,115 @@
 
 import json
 import sqlite3
+import re
 from typing import Any, Dict, List, Optional
+
+
+VALID_CATEGORIES = {
+    "electronics", "footwear", "sports & outdoors",
+    "fashion", "beauty & care", "home & kitchen"
+}
+
+CATEGORY_MAPPING = {
+    # Electronics
+    "electronics": "Electronics",
+    "electronic": "Electronics",
+    "phone": "Electronics",
+    "phones": "Electronics",
+    "smartphone": "Electronics",
+    "smartphones": "Electronics",
+    "mobile": "Electronics",
+    "mobiles": "Electronics",
+    "laptop": "Electronics",
+    "laptops": "Electronics",
+    "speaker": "Electronics",
+    "speakers": "Electronics",
+    "earbuds": "Electronics",
+    "earphone": "Electronics",
+    "earphones": "Electronics",
+    "headphone": "Electronics",
+    "headphones": "Electronics",
+    "tablet": "Electronics",
+    "tablets": "Electronics",
+    "webcam": "Electronics",
+    "webcams": "Electronics",
+    "keyboard": "Electronics",
+    "keyboards": "Electronics",
+    "watch": "Electronics",
+    "watches": "Electronics",
+    "smartwatch": "Electronics",
+    "smartwatches": "Electronics",
+    "drone": "Electronics",
+    "drones": "Electronics",
+
+    # Footwear
+    "footwear": "Footwear",
+    "shoe": "Footwear",
+    "shoes": "Footwear",
+    "sneaker": "Footwear",
+    "sneakers": "Footwear",
+    "boot": "Footwear",
+    "boots": "Footwear",
+    "sandal": "Footwear",
+    "sandals": "Footwear",
+    "running shoes": "Footwear",
+
+    # Sports & Outdoors
+    "sports & outdoors": "Sports & Outdoors",
+    "sports": "Sports & Outdoors",
+    "outdoors": "Sports & Outdoors",
+    "backpack": "Sports & Outdoors",
+    "backpacks": "Sports & Outdoors",
+    "trekking": "Sports & Outdoors",
+    "racket": "Sports & Outdoors",
+    "rackets": "Sports & Outdoors",
+    "mat": "Sports & Outdoors",
+    "yoga mat": "Sports & Outdoors",
+
+    # Fashion
+    "fashion": "Fashion",
+    "clothes": "Fashion",
+    "clothing": "Fashion",
+    "apparel": "Fashion",
+    "saree": "Fashion",
+    "sari": "Fashion",
+    "sarees": "Fashion",
+    "jeans": "Fashion",
+    "tshirt": "Fashion",
+    "t-shirt": "Fashion",
+    "tshirts": "Fashion",
+
+    # Beauty & Care
+    "beauty & care": "Beauty & Care",
+    "beauty": "Beauty & Care",
+    "care": "Beauty & Care",
+    "soap": "Beauty & Care",
+    "soaps": "Beauty & Care",
+    "shampoo": "Beauty & Care",
+    "shampoos": "Beauty & Care",
+    "sunscreen": "Beauty & Care",
+    "sunscreens": "Beauty & Care",
+    "lotion": "Beauty & Care",
+    "body lotion": "Beauty & Care",
+    "cream": "Beauty & Care",
+    "face cream": "Beauty & Care",
+    "perfume": "Beauty & Care",
+    "perfumes": "Beauty & Care",
+
+    # Home & Kitchen
+    "home & kitchen": "Home & Kitchen",
+    "home": "Home & Kitchen",
+    "kitchen": "Home & Kitchen",
+    "fryer": "Home & Kitchen",
+    "air fryer": "Home & Kitchen",
+    "kettle": "Home & Kitchen",
+    "bottle": "Home & Kitchen",
+    "vacuum": "Home & Kitchen",
+    "candle": "Home & Kitchen",
+    "refrigerator": "Home & Kitchen",
+    "dinner set": "Home & Kitchen",
+    "storage box": "Home & Kitchen",
+}
 
 
 class DatabaseManager:
@@ -137,7 +245,17 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             for p in products:
-                specs_str = json.dumps(p.get("specs", {})) if isinstance(p.get("specs"), dict) else str(p.get("specs", "{}"))
+                title = p.get("title") or p.get("name") or "Product"
+                desc = p.get("description", "")
+                cat = p.get("category", "General")
+                brand = p.get("brand", "Generic")
+                price = float(p.get("price") if p.get("price") is not None else p.get("price_inr", 0.0))
+                currency = p.get("currency", "INR")
+                stock = int(p.get("stock_quantity") if p.get("stock_quantity") is not None else p.get("stock", 0))
+                rating = float(p.get("rating", 0.0))
+                raw_specs = p.get("specs") if p.get("specs") is not None else p.get("attributes", {})
+
+                specs_str = json.dumps(raw_specs) if isinstance(raw_specs, dict) else str(raw_specs)
                 tags_str = json.dumps(p.get("tags", [])) if isinstance(p.get("tags"), list) else str(p.get("tags", "[]"))
                 multi_str = json.dumps(p.get("multilingual_titles", {})) if isinstance(p.get("multilingual_titles"), dict) else str(p.get("multilingual_titles", "{}"))
 
@@ -158,14 +276,14 @@ class DatabaseManager:
                     multilingual_titles=excluded.multilingual_titles;
                 """, (
                     p["product_id"],
-                    p["title"],
-                    p["description"],
-                    p["category"],
-                    p["brand"],
-                    float(p["price"]),
-                    p.get("currency", "INR"),
-                    int(p.get("stock_quantity", 0)),
-                    float(p.get("rating", 0.0)),
+                    title,
+                    desc,
+                    cat,
+                    brand,
+                    price,
+                    currency,
+                    stock,
+                    rating,
                     specs_str,
                     tags_str,
                     multi_str,
@@ -188,7 +306,7 @@ class DatabaseManager:
         # Sanitize query for FTS5 syntax
         clean_terms = [t for t in query.replace("'", " ").replace('"', " ").split() if t.isalnum()]
         if not clean_terms:
-            return self.get_all_products(limit=limit)
+            return []
 
         match_expression = " OR ".join(f'"{term}"*' for term in clean_terms)
         with self.get_connection() as conn:
@@ -227,8 +345,11 @@ class DatabaseManager:
             params.extend(candidate_ids)
 
         if "category" in filters and filters["category"]:
-            conditions.append("LOWER(category) = LOWER(?)")
-            params.append(filters["category"])
+            cat_raw = str(filters["category"]).lower().strip()
+            cat = CATEGORY_MAPPING.get(cat_raw, cat_raw)
+            if cat.lower() in VALID_CATEGORIES:
+                conditions.append("LOWER(category) = LOWER(?)")
+                params.append(cat)
 
         if "brand" in filters and filters["brand"]:
             conditions.append("LOWER(brand) = LOWER(?)")
@@ -249,10 +370,16 @@ class DatabaseManager:
             conditions.append("rating >= ?")
             params.append(float(filters["min_rating"]))
 
+        for key in ("size", "colour"):
+            if key in filters:
+                expression = "json_extract(specs, '$.size')" if key == "size" else "coalesce(json_extract(specs, '$.colour'), json_extract(specs, '$.color'))"
+                conditions.append(f"lower(CAST({expression} AS TEXT)) = lower(?)")
+                params.append(str(filters[key]))
+
         sql = "SELECT * FROM products"
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
-        sql += " ORDER BY rating DESC, price ASC LIMIT 20;"
+        sql += " ORDER BY price, product_id;"
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -260,10 +387,15 @@ class DatabaseManager:
             rows = cursor.fetchall()
             products = [self._row_to_product(r) for r in rows]
 
-        # In-memory check for RAM or Storage in JSON specs if specified
-        if "ram_gb" in filters:
-            req_ram = filters["ram_gb"]
-            products = [p for p in products if p.get("specs", {}).get("ram_gb") == req_ram or f"{req_ram}GB" in str(p.get("specs"))]
+        for key in ("ram", "storage"):
+            target = filters.get(f"{key}_gb")
+            if target is not None:
+                def matches(product):
+                    specs = product["specs"]
+                    value = specs.get(f"{key}_gb", specs.get(key, ""))
+                    match = re.fullmatch(r"([0-9.]+)\s*(gb|tb)?", str(value).strip(), re.I)
+                    return bool(match and float(match[1]) * (1024 if (match[2] or "").lower() == "tb" else 1) == target)
+                products = [product for product in products if matches(product)]
 
         return products
 
@@ -320,7 +452,7 @@ class DatabaseManager:
     def get_all_shoppers(self) -> List[Dict[str, Any]]:
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM shoppers ORDER BY customer_id ASC;")
+            cursor.execute("SELECT customer_id, name, loyalty_tier FROM shoppers ORDER BY customer_id ASC;")
             return [dict(r) for r in cursor.fetchall()]
 
     def upsert_orders(self, orders: List[Dict[str, Any]]) -> int:
@@ -389,24 +521,27 @@ class DatabaseManager:
             return json.loads(row["trace_data"])
 
     # Session Memory
-    def get_session_history(self, session_id: str) -> List[Dict[str, Any]]:
+    def get_session_history(self, session_id: str, customer_id: Optional[str] = None) -> List[Dict[str, Any]]:
         with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT messages FROM sessions WHERE session_id = ?", (session_id,))
-            row = cursor.fetchone()
-            if not row:
+            row = conn.execute(
+                "SELECT messages FROM sessions WHERE session_id = ?",
+                (session_id,)
+            ).fetchone()
+            if not row or not row["messages"]:
                 return []
-            return json.loads(row["messages"])
+            try:
+                return json.loads(row["messages"])
+            except Exception:
+                return []
 
     def update_session(self, session_id: str, customer_id: Optional[str], messages: List[Dict[str, Any]]):
         with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-            INSERT INTO sessions (session_id, customer_id, messages, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(session_id) DO UPDATE SET
-                customer_id=coalesce(excluded.customer_id, sessions.customer_id),
-                messages=excluded.messages,
-                updated_at=CURRENT_TIMESTAMP;
-            """, (session_id, customer_id, json.dumps(messages)))
+            conn.execute("""
+                INSERT INTO sessions (session_id, customer_id, messages, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(session_id) DO UPDATE SET
+                    customer_id=coalesce(excluded.customer_id, sessions.customer_id),
+                    messages=excluded.messages,
+                    updated_at=CURRENT_TIMESTAMP;
+            """, (session_id, customer_id or "", json.dumps(messages)))
             conn.commit()
