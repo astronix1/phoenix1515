@@ -1,111 +1,857 @@
-{
-  "shoppers": [
-    {
-      "customer_id": "C001",
-      "name": "Rahul Sharma",
-      "email": "rahul.sharma@example.com",
-      "loyalty_tier": "Platinum",
-      "address": "42 Indiranagar, Bengaluru, KA 560038"
-    },
-    {
-      "customer_id": "C002",
-      "name": "Priya Patel",
-      "email": "priya.patel@example.com",
-      "loyalty_tier": "Gold",
-      "address": "15 CG Road, Ahmedabad, GJ 380009"
-    },
-    {
-      "customer_id": "C003",
-      "name": "Amit Verma",
-      "email": "amit.verma@example.com",
-      "loyalty_tier": "Silver",
-      "address": "78 Gomti Nagar, Lucknow, UP 226010"
-    },
-    {
-      "customer_id": "C004",
-      "name": "Sneha Roy",
-      "email": "sneha.roy@example.com",
-      "loyalty_tier": "Bronze",
-      "address": "12 Salt Lake, Kolkata, WB 700091"
-    },
-    {
-      "customer_id": "C005",
-      "name": "Vikram Rao",
-      "email": "vikram.rao@example.com",
-      "loyalty_tier": "Platinum",
-      "address": "89 Jubilee Hills, Hyderabad, TS 500033"
-    }
-  ],
-  "orders": [
-    {
-      "order_id": "ORD-9021",
-      "customer_id": "C001",
-      "product_id": "ELEC-LAP-001",
-      "quantity": 1,
-      "total_amount": 134900.0,
-      "order_status": "Delivered",
-      "order_date": "2026-11-10",
-      "tracking_number": "TRK-BLR-88192"
-    },
-    {
-      "order_id": "ORD-9022",
-      "customer_id": "C001",
-      "product_id": "ELEC-AUD-002",
-      "quantity": 1,
-      "total_amount": 24900.0,
-      "order_status": "Shipped",
-      "order_date": "2026-11-19",
-      "tracking_number": "TRK-DEL-44102"
-    },
-    {
-      "order_id": "ORD-8411",
-      "customer_id": "C002",
-      "product_id": "FOOT-RUN-001",
-      "quantity": 1,
-      "total_amount": 10495.0,
-      "order_status": "Delivered",
-      "order_date": "2026-11-05",
-      "tracking_number": "TRK-AMD-11928"
-    },
-    {
-      "order_id": "ORD-8412",
-      "customer_id": "C002",
-      "product_id": "HOME-KIT-001",
-      "quantity": 1,
-      "total_amount": 8499.0,
-      "order_status": "Processing",
-      "order_date": "2026-11-20",
-      "tracking_number": "TRK-MUM-77312"
-    },
-    {
-      "order_id": "ORD-7301",
-      "customer_id": "C003",
-      "product_id": "ELEC-PHO-004",
-      "quantity": 1,
-      "total_amount": 11990.0,
-      "order_status": "Delivered",
-      "order_date": "2026-10-25",
-      "tracking_number": "TRK-LKO-99302"
-    },
-    {
-      "order_id": "ORD-6101",
-      "customer_id": "C004",
-      "product_id": "APP-WOM-001",
-      "quantity": 1,
-      "total_amount": 7999.0,
-      "order_status": "Delivered",
-      "order_date": "2026-10-15",
-      "tracking_number": "TRK-CCU-55201"
-    },
-    {
-      "order_id": "ORD-5201",
-      "customer_id": "C005",
-      "product_id": "ELEC-PHO-002",
-      "quantity": 1,
-      "total_amount": 129999.0,
-      "order_status": "Delivered",
-      "order_date": "2026-11-01",
-      "tracking_number": "TRK-HYD-66190"
-    }
-  ]
-}
+[
+  {
+    "shopper_id": "C-001",
+    "name": "Priya Sharma",
+    "preferred_language": "hi",
+    "budget_band": "10000+",
+    "taste_tags": [
+      "Home & Kitchen",
+      "Electronics"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-001-1",
+        "product_id": "P-2208",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-001-2",
+        "product_id": "P-2197",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-001-3",
+        "product_id": "P-2178",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-001-4",
+        "product_id": "P-2005",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-002",
+    "name": "Arjun Mehta",
+    "preferred_language": "hinglish",
+    "budget_band": "under 2000",
+    "taste_tags": [
+      "Home & Kitchen",
+      "Beauty & Care"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-002-1",
+        "product_id": "P-2234",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-002-2",
+        "product_id": "P-2188",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-002-3",
+        "product_id": "P-2192",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-003",
+    "name": "Rohan Gupta",
+    "preferred_language": "en",
+    "budget_band": "under 2000",
+    "taste_tags": [
+      "Electronics"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-003-1",
+        "product_id": "P-2002",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-003-2",
+        "product_id": "P-2006",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-003-3",
+        "product_id": "P-2048",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-004",
+    "name": "Ananya Singh",
+    "preferred_language": "hi",
+    "budget_band": "10000+",
+    "taste_tags": [
+      "Fashion",
+      "Electronics"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-004-1",
+        "product_id": "P-2126",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-004-2",
+        "product_id": "P-2102",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-004-3",
+        "product_id": "P-2095",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-004-4",
+        "product_id": "P-2101",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-004-5",
+        "product_id": "P-2118",
+        "ordered_at": "2026-09-14",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-005",
+    "name": "Vikram Yadav",
+    "preferred_language": "hinglish",
+    "budget_band": "2000-10000",
+    "taste_tags": [
+      "Footwear",
+      "Electronics"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-005-1",
+        "product_id": "P-2053",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-005-2",
+        "product_id": "P-2008",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-005-3",
+        "product_id": "P-2054",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-006",
+    "name": "Sneha Patel",
+    "preferred_language": "en",
+    "budget_band": "2000-10000",
+    "taste_tags": [
+      "Home & Kitchen"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-006-1",
+        "product_id": "P-2200",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-006-2",
+        "product_id": "P-2206",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-006-3",
+        "product_id": "P-2176",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-006-4",
+        "product_id": "P-2199",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-006-5",
+        "product_id": "P-2202",
+        "ordered_at": "2026-09-14",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-007",
+    "name": "Amit Kumar",
+    "preferred_language": "hi",
+    "budget_band": "under 2000",
+    "taste_tags": [
+      "Fashion"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-007-1",
+        "product_id": "P-2110",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-007-2",
+        "product_id": "P-2121",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-007-3",
+        "product_id": "P-2102",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-008",
+    "name": "Kavya Reddy",
+    "preferred_language": "hinglish",
+    "budget_band": "10000+",
+    "taste_tags": [
+      "Home & Kitchen"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-008-1",
+        "product_id": "P-2190",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-008-2",
+        "product_id": "P-2193",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-008-3",
+        "product_id": "P-2206",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-008-4",
+        "product_id": "P-2201",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-008-5",
+        "product_id": "P-2210",
+        "ordered_at": "2026-09-14",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-009",
+    "name": "Nikhil Jain",
+    "preferred_language": "en",
+    "budget_band": "2000-10000",
+    "taste_tags": [
+      "Electronics",
+      "Beauty & Care"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-009-1",
+        "product_id": "P-2011",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-009-2",
+        "product_id": "P-2049",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-009-3",
+        "product_id": "P-2019",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-009-4",
+        "product_id": "P-2227",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-010",
+    "name": "Pooja Verma",
+    "preferred_language": "hi",
+    "budget_band": "10000+",
+    "taste_tags": [
+      "Beauty & Care"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-010-1",
+        "product_id": "P-2227",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-010-2",
+        "product_id": "P-2237",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-010-3",
+        "product_id": "P-2226",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-011",
+    "name": "Sanjay Mishra",
+    "preferred_language": "hinglish",
+    "budget_band": "2000-10000",
+    "taste_tags": [
+      "Home & Kitchen",
+      "Sports & Outdoors"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-011-1",
+        "product_id": "P-2159",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-011-2",
+        "product_id": "P-2042",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-011-3",
+        "product_id": "P-2144",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-011-4",
+        "product_id": "P-2209",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-011-5",
+        "product_id": "P-2198",
+        "ordered_at": "2026-09-14",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-012",
+    "name": "Divya Nair",
+    "preferred_language": "en",
+    "budget_band": "10000+",
+    "taste_tags": [
+      "Fashion"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-012-1",
+        "product_id": "P-2094",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-012-2",
+        "product_id": "P-2110",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-012-3",
+        "product_id": "P-2096",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-013",
+    "name": "Karan Kapoor",
+    "preferred_language": "hi",
+    "budget_band": "10000+",
+    "taste_tags": [
+      "Home & Kitchen",
+      "Fashion"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-013-1",
+        "product_id": "P-2195",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-013-2",
+        "product_id": "P-2187",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-013-3",
+        "product_id": "P-2206",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-014",
+    "name": "Meera Iyer",
+    "preferred_language": "hinglish",
+    "budget_band": "10000+",
+    "taste_tags": [
+      "Fashion"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-014-1",
+        "product_id": "P-2096",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-014-2",
+        "product_id": "P-2107",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-014-3",
+        "product_id": "P-2129",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-014-4",
+        "product_id": "P-2117",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-014-5",
+        "product_id": "P-2115",
+        "ordered_at": "2026-09-14",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-015",
+    "name": "Rahul Verma",
+    "preferred_language": "en",
+    "budget_band": "under 2000",
+    "taste_tags": [
+      "Footwear"
+    ],
+    "orders": []
+  },
+  {
+    "shopper_id": "C-016",
+    "name": "Ishita Bose",
+    "preferred_language": "hi",
+    "budget_band": "under 2000 and 10000+",
+    "taste_tags": [
+      "Electronics",
+      "Beauty & Care"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-016-1",
+        "product_id": "P-1302",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-016-2",
+        "product_id": "P-2039",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-016-3",
+        "product_id": "P-2232",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-016-4",
+        "product_id": "P-2012",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-017",
+    "name": "Manish Tiwari",
+    "preferred_language": "hinglish",
+    "budget_band": "10000+",
+    "taste_tags": [
+      "Sports & Outdoors"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-017-1",
+        "product_id": "P-2146",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-017-2",
+        "product_id": "P-2166",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-017-3",
+        "product_id": "P-4101",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-017-4",
+        "product_id": "P-2140",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-018",
+    "name": "Tanvi Desai",
+    "preferred_language": "en",
+    "budget_band": "10000+",
+    "taste_tags": [
+      "Footwear"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-018-1",
+        "product_id": "P-1102",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-018-2",
+        "product_id": "P-2081",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-018-3",
+        "product_id": "P-2078",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-019",
+    "name": "Aditya Rao",
+    "preferred_language": "hi",
+    "budget_band": "10000+",
+    "taste_tags": [
+      "Fashion"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-019-1",
+        "product_id": "P-2101",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-019-2",
+        "product_id": "P-2114",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-019-3",
+        "product_id": "P-2104",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-020",
+    "name": "Nisha Chandra",
+    "preferred_language": "hinglish",
+    "budget_band": "under 2000",
+    "taste_tags": [
+      "Electronics",
+      "Beauty & Care"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-020-1",
+        "product_id": "P-2012",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-020-2",
+        "product_id": "P-2008",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-020-3",
+        "product_id": "P-2227",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-020-4",
+        "product_id": "P-2040",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-020-5",
+        "product_id": "P-2003",
+        "ordered_at": "2026-09-14",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-021",
+    "name": "Varun Malhotra",
+    "preferred_language": "en",
+    "budget_band": "10000+",
+    "taste_tags": [
+      "Beauty & Care",
+      "Sports & Outdoors"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-021-1",
+        "product_id": "P-2153",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-021-2",
+        "product_id": "P-2148",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-021-3",
+        "product_id": "P-2151",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-022",
+    "name": "Ritu Agarwal",
+    "preferred_language": "hi",
+    "budget_band": "10000+",
+    "taste_tags": [
+      "Footwear"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-022-1",
+        "product_id": "P-2088",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-022-2",
+        "product_id": "P-2079",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-022-3",
+        "product_id": "P-2089",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-022-4",
+        "product_id": "P-2068",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-023",
+    "name": "Suresh Pillai",
+    "preferred_language": "hinglish",
+    "budget_band": "10000+",
+    "taste_tags": [
+      "Beauty & Care"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-023-1",
+        "product_id": "P-2234",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-023-2",
+        "product_id": "P-2226",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-023-3",
+        "product_id": "P-2222",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-023-4",
+        "product_id": "P-2236",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-023-5",
+        "product_id": "P-2233",
+        "ordered_at": "2026-09-14",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-024",
+    "name": "Aisha Khan",
+    "preferred_language": "en",
+    "budget_band": "2000-10000",
+    "taste_tags": [
+      "Sports & Outdoors"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-024-1",
+        "product_id": "P-2153",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-024-2",
+        "product_id": "P-2143",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-024-3",
+        "product_id": "P-2146",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-024-4",
+        "product_id": "P-2041",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-024-5",
+        "product_id": "P-2171",
+        "ordered_at": "2026-09-14",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "shopper_id": "C-025",
+    "name": "Dev Patel",
+    "preferred_language": "hi",
+    "budget_band": "under 2000",
+    "taste_tags": [
+      "Home & Kitchen",
+      "Electronics"
+    ],
+    "orders": [
+      {
+        "order_id": "O-C-025-1",
+        "product_id": "P-1201",
+        "ordered_at": "2026-09-10",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-025-2",
+        "product_id": "P-2032",
+        "ordered_at": "2026-09-11",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-025-3",
+        "product_id": "P-2203",
+        "ordered_at": "2026-09-12",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-025-4",
+        "product_id": "P-2035",
+        "ordered_at": "2026-09-13",
+        "qty": 1
+      },
+      {
+        "order_id": "O-C-025-5",
+        "product_id": "P-2026",
+        "ordered_at": "2026-09-14",
+        "qty": 1
+      }
+    ]
+  }
+]
