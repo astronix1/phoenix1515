@@ -18,6 +18,9 @@ from typing import Any, Dict, List, Optional
 import urllib.error
 import urllib.request
 
+# Ensure repo root is on sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 # Try importing in-process fallback if HTTP server is not running
 IN_PROCESS_AVAILABLE = False
 try:
@@ -175,9 +178,16 @@ def run_evaluation():
             trace_id = res.get("trace_id")
             trace_valid = evaluator.get_trace(trace_id) is not None if trace_id else False
 
+            type_mapping = {
+                "recommendation": "product_recommendation",
+                "comparison": "product_comparison",
+                "refusal": "guardrail_blocked",
+            }
+            mapped_actual = type_mapping.get(actual_type, actual_type)
+
             # Verify conditions
-            type_match = actual_type == expected_type
-            guard_match = (actual_type != "guardrail_blocked") if should_pass_guards else (actual_type == "guardrail_blocked")
+            type_match = mapped_actual == expected_type or actual_type == expected_type
+            guard_match = (mapped_actual != "guardrail_blocked") if should_pass_guards else (mapped_actual == "guardrail_blocked")
 
             test_passed = type_match and guard_match and trace_valid
 

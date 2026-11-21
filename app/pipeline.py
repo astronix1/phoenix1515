@@ -133,8 +133,23 @@ class Pipeline:
             turns = previous.get("questions", 0) if follow or query == previous.get("query") else 0
             search_filters = dict(filters)
             prior_ids = previous.get("ids", [])
-            vague = not filters and not cheaper and (not terms or len(terms) == 1 and terms[0] in PRODUCT_TYPES
-                    or intent == "clarification" or re.fullmatch(r"(i need |show me |looking for )?(a |an )?(gift|something|electronics|footwear|clothes|help)[.!?]?", query, re.I))
+            is_inventory_check = bool(re.search(r"\b(do you (?:sell|have|carry)|any|is there|are there|have you got)\b", query, re.I))
+            vague = (
+                not filters 
+                and not cheaper 
+                and not is_inventory_check 
+                and (
+                    not terms 
+                    or (len(terms) == 1 and terms[0] in PRODUCT_TYPES)
+                    or intent == "clarification" 
+                    or re.fullmatch(r"(i need |show me |looking for )?(a |an )?(gift|something|electronics|footwear|clothes|help)[.!?]?", query, re.I)
+                )
+            )
+            if vague and subject:
+                # Do not ask clarifying budget question if no items exist in catalogue for this query
+                has_sample = bool(self.db.search_fts(subject, limit=1) or self.search.search(subject, top_k=1))
+                if not has_sample:
+                    vague = False
             if comparison:
                 if not ids and re.search(r"\b(first two|these two|those two|them|both)\b", query, re.I):
                     ids = prior_ids[:2]
@@ -179,9 +194,30 @@ class Pipeline:
             elif kind == "comparison":
                 answer = compare_answer(rows, lang)
             elif kind == "not_found":
-                answer = localized(lang, "I couldn’t find a catalogue match. Would you like to widen the search?",
-                                   "कैटलॉग में कोई मेल नहीं मिला। क्या आप खोज बदलना चाहेंगे?",
-                                   "Catalogue mein koi match nahi mila. Search badlein?")
+                item_terms = [t for t in search_terms(subject or query) if t not in ("sell", "have", "carry", "any")]
+                core_item = " ".join(item_terms)
+                unconstrained = bool(self.search.search(core_item or subject or query, top_k=1))
+                if not unconstrained and core_item:
+                    answer = localized(
+                        lang,
+                        f"We do not sell {core_item} in our catalogue. We offer Electronics, Footwear, Sports & Outdoors, Fashion, Home & Kitchen, and Beauty & Care.",
+                        f"माफ कीजिए, हमारे कैटलॉग में {core_item} उपलब्ध नहीं है। हमारे पास Electronics, Footwear, Sports & Outdoors, Fashion, Home & Kitchen, और Beauty & Care उपलब्ध हैं।",
+                        f"Maaf kijiye, hamare catalogue mein {core_item} available nahi hai. Hamare paas Electronics, Footwear, Sports & Outdoors, Fashion, Home & Kitchen, aur Beauty & Care available hain."
+                    )
+                elif core_item:
+                    answer = localized(
+                        lang,
+                        f"I couldn't find any {core_item} matching your specific criteria. Would you like to adjust your budget or filters?",
+                        f"कैटलॉग में आपके दिए गए बजट या फ़िल्टर के अनुसार {core_item} नहीं मिला। क्या आप खोज बदलना चाहेंगे?",
+                        f"Aapke budget ya filters ke mutabik {core_item} nahi mila. Kya aap search badalna chahenge?"
+                    )
+                else:
+                    answer = localized(
+                        lang,
+                        "I couldn’t find a catalogue match. We carry Electronics, Footwear, Sports & Outdoors, Fashion, Home & Kitchen, and Beauty & Care.",
+                        "कैटलॉग में कोई मेल नहीं मिला। हमारे पास Electronics, Footwear, Sports & Outdoors, Fashion, Home & Kitchen, और Beauty & Care उपलब्ध हैं।",
+                        "Catalogue mein koi match nahi mila. Hamare paas Electronics, Footwear, Sports & Outdoors, Fashion, Home & Kitchen, aur Beauty & Care hain."
+                    )
             else:
                 answer = localized(lang, "Here’s what the catalogue shows.", "कैटलॉग में ये विकल्प मिले।", "Catalogue mein ye options mile.")
             field = self.llm.reason_field(query, filters) if kind == "recommendation" else "price"

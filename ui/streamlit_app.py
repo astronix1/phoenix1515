@@ -87,7 +87,7 @@ def get_local_pipeline():
 
 
 
-# Custom CSS for styling
+# Custom CSS for styling (Theme-adaptive for Dark and Light Mode)
 st.markdown("""
 <style>
     .main-header {
@@ -98,43 +98,74 @@ st.markdown("""
     }
     .sub-header {
         font-size: 1.05rem;
-        color: #555;
+        opacity: 0.85;
         margin-bottom: 1.5rem;
     }
     .product-card {
-        background-color: #f8f9fa;
+        background-color: rgba(30, 136, 229, 0.08);
+        border: 1px solid rgba(30, 136, 229, 0.25);
+        border-left: 5px solid #1E88E5;
         border-radius: 10px;
         padding: 16px;
         margin-bottom: 12px;
-        border-left: 5px solid #1E88E5;
         box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+        color: var(--text-color);
+    }
+    .product-card .product-title {
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: var(--text-color);
+    }
+    .product-card .product-meta {
+        opacity: 0.8;
+        font-size: 0.85rem;
+        margin-top: 2px;
+    }
+    .product-card .product-price {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #42a5f5;
+        margin: 6px 0;
     }
     .order-card {
-        background-color: #e8f5e9;
-        border-radius: 10px;
-        padding: 14px;
-        margin-bottom: 10px;
+        background-color: rgba(46, 125, 50, 0.16);
+        border: 1px solid rgba(76, 175, 80, 0.35);
         border-left: 5px solid #2e7d32;
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 12px;
+        color: var(--text-color);
+    }
+    .order-card strong {
+        color: #81c784;
+    }
+    .order-card .meta {
+        opacity: 0.85;
+        font-size: 0.9rem;
+        margin-top: 4px;
     }
     .trace-box {
-        background-color: #263238;
+        background-color: rgba(38, 50, 56, 0.85);
         color: #eceff1;
+        border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 8px;
         padding: 12px;
         font-family: monospace;
         font-size: 0.85rem;
     }
     .badge-instock {
-        background-color: #c8e6c9;
-        color: #1b5e20;
+        background-color: rgba(46, 125, 50, 0.2);
+        color: #81c784;
+        border: 1px solid rgba(76, 175, 80, 0.4);
         padding: 3px 8px;
         border-radius: 12px;
         font-size: 0.8rem;
         font-weight: 600;
     }
     .badge-outstock {
-        background-color: #ffcdd2;
-        color: #b71c1c;
+        background-color: rgba(198, 40, 40, 0.2);
+        color: #e57373;
+        border: 1px solid rgba(229, 115, 115, 0.4);
         padding: 3px 8px;
         border-radius: 12px;
         font-size: 0.8rem;
@@ -254,12 +285,10 @@ for msg in st.session_state.messages:
                     )
                     st.markdown(f"""
                     <div class="product-card">
-                        <div style="font-weight: 700; font-size: 1.05rem;">{p.get('title')}</div>
-                        <div style="color: #666; font-size: 0.85rem;">{p.get('brand')} • {p.get('category')}</div>
-                        <div style="font-size: 1.15rem; font-weight: 800; color: #1E88E5; margin: 6px 0;">
-                            ₹{p.get('price', 0):,}
-                        </div>
-                        <div style="margin-bottom: 6px;">
+                        <div class="product-title">{p.get('title')}</div>
+                        <div class="product-meta">{p.get('brand')} • {p.get('category')}</div>
+                        <div class="product-price">₹{p.get('price', 0):,}</div>
+                        <div style="margin-top: 6px;">
                             ⭐ {p.get('rating', 0)} / 5.0 &nbsp;&nbsp; {stock_badge}
                         </div>
                     </div>
@@ -269,11 +298,18 @@ for msg in st.session_state.messages:
         if "orders" in msg and msg["orders"]:
             st.markdown("#### 🚚 Order History")
             for o in msg["orders"]:
+                order_id = o.get('order_id', 'N/A')
+                prod_title = o.get('product_title') or o.get('product_id', 'Product')
+                qty = o.get('quantity', 1)
+                status = o.get('order_status', 'Processing')
+                date = o.get('order_date', 'Recent')
+                total = f"{o.get('total_amount', 0):,}"
+                tracking = o.get('tracking_number') or 'N/A'
                 st.markdown(f"""
                 <div class="order-card">
-                    <b>Order #{o.get('order_id')}</b>: {o.get('product_title') or o.get('product_id')} (Qty: {o.get('quantity')})<br/>
-                    <b>Status:</b> {o.get('order_status')} &nbsp;|&nbsp; <b>Date:</b> {o.get('order_date')} &nbsp;|&nbsp; <b>Total:</b> ₹{o.get('total_amount'):,}<br/>
-                    <small>Tracking: {o.get('tracking_number') or 'N/A'}</small>
+                    <div><strong>Order #{order_id}: {prod_title} (Qty: {qty})</strong></div>
+                    <div class="meta">Status: {status} | Date: {date} | Total: ₹{total}</div>
+                    <div class="meta">Tracking: {tracking}</div>
                 </div>
                 """, unsafe_allow_html=True)
 

@@ -227,7 +227,7 @@ ALIASES = {
     "सैमसंग": "samsung", "गैलेक्सी": "galaxy", "rucksack": "backpack",
     "hiking": "trekking", "hike": "trekking", "trek": "trekking",
 }
-PRODUCT_TYPES = set("phone laptop shoe sneaker speaker backpack trekking earbuds earphone headphone saree jeans tablet webcam keyboard watch mat car drone refrigerator vacuum fryer kettle bottle sari boot sandal tshirt sunscreen soap racket candle".split())
+PRODUCT_TYPES = set("phone laptop shoe sneaker speaker backpack trekking earbuds earphone headphone saree jeans tablet webcam keyboard watch mat drone refrigerator vacuum fryer kettle bottle sari boot sandal tshirt sunscreen soap racket candle".split())
 STOP_WORDS = set("""a an the any all do does you sell have are there show me i need want looking for find
     recommend some please only with and or of my father who likes gift to in on under below above
     up maximum budget than less more within price stock available now ready ship size rs inr rupees
