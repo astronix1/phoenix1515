@@ -4,8 +4,12 @@ from contextlib import asynccontextmanager
 import json
 import os
 from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+
+load_dotenv()
+
 
 from app.db import DatabaseManager
 from app.llm import LLMClient

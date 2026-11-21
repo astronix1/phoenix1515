@@ -14,10 +14,17 @@ import urllib.request
 class LLMClient:
     def __init__(self):
         self.mock_mode = os.getenv("MOCK_LLM", "true").lower() == "true"
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
         self.ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         self.ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
         self.api_key = os.getenv("LLM_API_KEY", "")
         self.api_base = os.getenv("LLM_API_BASE", "https://api.openai.com/v1")
+
+    def _has_remote_llm(self) -> bool:
+        if self.mock_mode:
+            return False
+        return bool(self.gemini_api_key or self.api_key or (self.ollama_url and not self.mock_mode))
 
     def plan_intent_and_filters(
         self,
@@ -26,7 +33,7 @@ class LLMClient:
         normalized_filters: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Plans the query execution: classifies intent and extracts hard filters & search query."""
-        if self.mock_mode or not self.api_key:
+        if not self._has_remote_llm():
             return self._mock_plan(query, history, normalized_filters)
 
         try:
@@ -196,6 +203,23 @@ class LLMClient:
 
     # Remote LLM Invocation Helpers
     def _call_llm(self, prompt: str) -> str:
+        # Check Google Gemini API
+        if self.gemini_api_key:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_model}:generateContent?key={self.gemini_api_key}"
+            req_data = json.dumps({
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.2}
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=req_data,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                res = json.loads(resp.read().decode("utf-8"))
+                return res["candidates"][0]["content"]["parts"][0]["text"]
+
         # Check Ollama
         if self.ollama_url and not self.api_key:
             req_data = json.dumps({
