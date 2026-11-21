@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Initialize data and database
-RUN python data/generate_data.py && python data/validate_data.py
+RUN python data/seed_db.py
 
 EXPOSE 8000 8501
 

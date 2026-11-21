@@ -8,10 +8,11 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
-      - MOCK_LLM=true
       - SQLITE_DB_PATH=/app/data_volume/shop.db
-      - USE_CHROMADB=false
+      - USE_CHROMADB=true
     volumes:
       - storage_data:/app/data_volume
     restart: unless-stopped
@@ -23,6 +24,8 @@ services:
     command: streamlit run ui/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
     ports:
       - "8501:8501"
+    env_file:
+      - .env
     environment:
       - API_BASE_URL=http://api:8000
     depends_on:

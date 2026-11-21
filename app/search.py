@@ -3,18 +3,21 @@
 Provides Reciprocal Rank Fusion (RRF) and live upsert support.
 """
 
-import math
+import json
 import logging
-from threading import RLock
+import math
 import os
 import re
-from typing import Any, Dict, List, Optional
+from threading import RLock
+from typing import Any, Dict, List
+import urllib.request
+
 from app.db import DatabaseManager
 
 
 class SimpleVectorIndex:
     """A lightweight multilingual term/dense embedding vector index with cosine similarity.
-    Ensures zero external dependency failure while supporting semantic and multilingual matching.
+    Fallback index if ChromaDB or the embedding API is unavailable.
     """
 
     def __init__(self):
@@ -23,13 +26,11 @@ class SimpleVectorIndex:
         self.idf: Dict[str, float] = {}
 
     def _tokenize(self, text: str) -> List[str]:
-        # Support alphanumeric terms, multilingual characters, and character n-grams for subword matching
         tokens = [w.lower() for w in re.findall(r"[\w\u0900-\u097F]+", text)]
-        # Add character tri-grams to capture multilingual stems (Hindi, Hinglish, suffixes)
         ngrams = []
         for t in tokens:
             if len(t) >= 4:
-                ngrams.extend([t[i:i+3] for i in range(len(t)-2)])
+                ngrams.extend([t[i:i + 3] for i in range(len(t) - 2)])
         return tokens + ngrams
 
     def add_documents(self, documents: List[Dict[str, Any]]):
@@ -40,7 +41,7 @@ class SimpleVectorIndex:
             cat = doc.get("category", "")
             brand = doc.get("brand", "")
             text = f"{title} {desc} {cat} {brand} "
-            for k, v in doc.get("multilingual_titles", {}).items():
+            for _, v in doc.get("multilingual_titles", {}).items():
                 text += f"{v} "
             for tag in doc.get("tags", []):
                 text += f"{tag} "
@@ -54,7 +55,6 @@ class SimpleVectorIndex:
             for t in tokens:
                 tf[t] = tf.get(t, 0.0) + 1.0
 
-            # Normalize tf
             total = len(tokens) or 1
             for t in tf:
                 tf[t] = tf[t] / total
@@ -105,13 +105,16 @@ class SimpleVectorIndex:
         return results
 
 
-class FastChromaEmbeddingFunction:
-    """Fast, zero-download offline embedding function for ChromaDB vector search."""
-    def __init__(self, dim: int = 64):
+class GeminiChromaEmbeddingFunction:
+    """Multilingual embedding function using Gemini gemini-embedding-001."""
+
+    def __init__(self, dim: int = 768):
+        self.api_key = os.getenv("GEMINI_API_KEY", "")
+        self.model = os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
         self.dim = dim
 
     def name(self) -> str:
-        return "fast_chroma"
+        return f"gemini_{self.model}"
 
     def embed_query(self, input: Any) -> Any:
         if isinstance(input, str):
@@ -121,7 +124,7 @@ class FastChromaEmbeddingFunction:
     def embed_documents(self, input: Any) -> Any:
         return self.__call__(input)
 
-    def __call__(self, input: List[str]) -> List[List[float]]:
+    def _offline_embed(self, input: List[str]) -> List[List[float]]:
         import hashlib
         import math
         embeddings = []
@@ -135,6 +138,36 @@ class FastChromaEmbeddingFunction:
             embeddings.append([x / norm for x in vec])
         return embeddings
 
+    def __call__(self, input: List[str]) -> List[List[float]]:
+        if not self.api_key:
+            return self._offline_embed(input)
+
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:batchEmbedContents"
+            requests_payload = [
+                {
+                    "model": f"models/{self.model}",
+                    "content": {"parts": [{"text": text[:2000]}]},
+                    "outputDimensionality": self.dim,
+                }
+                for text in input
+            ]
+            req = urllib.request.Request(
+                url,
+                data=json.dumps({"requests": requests_payload}).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": self.api_key,
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return [e["values"] for e in data["embeddings"]]
+        except Exception as e:
+            logging.error(f"Gemini embedding failed; using offline fallback: {e}")
+            return self._offline_embed(input)
+
 
 class HybridSearchEngine:
     def __init__(self, db: DatabaseManager):
@@ -146,7 +179,7 @@ class HybridSearchEngine:
 
     def _init_vector_store(self):
         """Attempts to initialize ChromaDB if available; falls back to self-contained vector index."""
-        use_chroma = os.getenv("USE_CHROMADB", "false").lower() == "true"
+        use_chroma = os.getenv("USE_CHROMADB", "true").lower() == "true"
         products = self.db.get_all_products(limit=-1)
         self.vector_index.add_documents(products)
         if use_chroma:
@@ -156,9 +189,11 @@ class HybridSearchEngine:
                 self.chroma_client = chromadb.PersistentClient(path=path)
                 self.collection = self.chroma_client.get_or_create_collection(
                     "products",
-                    embedding_function=FastChromaEmbeddingFunction()
+                    embedding_function=GeminiChromaEmbeddingFunction(),
+                    metadata={"hnsw:space": "cosine"},
                 )
-                self._index_chroma(products)
+                if products:
+                    self._index_chroma(products)
             except Exception:
                 logging.exception("Chroma unavailable; using the local vector index")
                 self.chroma_client = None
@@ -168,7 +203,10 @@ class HybridSearchEngine:
             batch = products[offset:offset + 100]
             self.collection.upsert(
                 ids=[p["product_id"] for p in batch],
-                documents=[f"{p['title']} {p['brand']} {p['description']} {p['specs']}" for p in batch],
+                documents=[
+                    f"{p['title']} {p['brand']} {p['category']} {p['description']} {p['specs']} {p.get('multilingual_titles', {})}"
+                    for p in batch
+                ],
             )
 
     def upsert_products(self, products: List[Dict[str, Any]]):
@@ -185,40 +223,49 @@ class HybridSearchEngine:
                     self.chroma_client = None
 
     def search(self, query: str, filters=None, top_k=5, rrf_k=60, cheapest=False):
-        """Apply constraints across the catalogue before truncating the fused ranking."""
+        """Apply SQL hard filters, then rank via FTS5 + ChromaDB RRF."""
         eligible = self.db.filter_products(filters or {})
         terms = search_terms(query)
-        if terms:
-            # A near neighbour alone is insufficient evidence that we sell the requested item.
-            required = [t for t in terms if t in PRODUCT_TYPES] or terms
-            def matches(product):
-                content = " ".join(str(product.get(k, "")) for k in
-                                   ("title", "brand", "category", "description", "tags", "multilingual_titles", "specs"))
-                words = set(search_terms(content))
-                return all(term in words for term in required)
-            eligible = [p for p in eligible if matches(p)]
         if not eligible or (not terms and not filters):
             return []
+
+        eligible_by_id = {p["product_id"]: p for p in eligible}
         with self.lock:
-            count = len(self.vector_index.doc_vectors)
-            query = " ".join(terms)
-            lexical = self.db.search_fts(query, limit=count)
-            vectors = self.vector_index.search(query, top_k=count)
-            if self.chroma_client and query:
+            count = max(len(self.vector_index.doc_vectors), 1)
+            clean_query = " ".join(terms) if terms else query
+            lexical = self.db.search_fts(clean_query, limit=count) if clean_query else []
+            vectors = []
+
+            if self.chroma_client and query.strip():
                 try:
-                    ids = self.collection.query(query_texts=[query], n_results=min(count, self.collection.count()))["ids"][0]
-                    vectors = [{"product_id": pid} for pid in ids]
+                    n_results = min(count, self.collection.count())
+                    if n_results > 0:
+                        res = self.collection.query(
+                            query_texts=[query],
+                            n_results=n_results,
+                            include=["distances"],
+                        )
+                        for pid, dist in zip(res["ids"][0], res["distances"][0]):
+                            if dist < 0.55:
+                                vectors.append({"product_id": pid})
                 except Exception:
-                    logging.exception("Chroma query failed; using the local ranking")
+                    logging.exception("Chroma query failed; using local fallback")
+                    vectors = self.vector_index.search(clean_query, top_k=count)
+            else:
+                vectors = self.vector_index.search(clean_query, top_k=count)
+
             scores = {}
             for ranking in (lexical, vectors):
                 for rank, item in enumerate(ranking, 1):
                     pid = item["product_id"]
-                    scores[pid] = scores.get(pid, 0) + 1 / (rrf_k + rank)
-        for product in eligible:
+                    if pid in eligible_by_id:
+                        scores[pid] = scores.get(pid, 0) + 1 / (rrf_k + rank)
+
+        matched = [eligible_by_id[pid] for pid in scores] if terms else eligible
+        for product in matched:
             product["score"] = round(scores.get(product["product_id"], 0), 6)
-        eligible.sort(key=lambda p: (p["price"] if cheapest else 0, -p["score"], p["product_id"]))
-        return eligible[:top_k]
+        matched.sort(key=lambda p: (p["price"] if cheapest else 0, -p["score"], p["product_id"]))
+        return matched[:top_k]
 
 
 ALIASES = {
