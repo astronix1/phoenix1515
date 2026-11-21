@@ -14,6 +14,7 @@ ENV/
 *.db-journal
 chroma_db/
 data_volume/
+backups/
 
 # Environment
 .env
