@@ -28,12 +28,12 @@ flowchart LR
             GUARD["app/guardrails.py<br/>• customer_id Privacy Gate<br/>• Injection Sanitizer<br/>• Unit Normalizer"]:::guard
             DB_MOD["app/db.py<br/>SQLite CRUD, Hard Filters,<br/>Comparisons & Audit Logs"]:::core
             SEARCH_MOD["app/search.py<br/>Hybrid Retrieval (Vector + FTS5)<br/>& Live Upsert"]:::core
-            LLM_MOD["app/llm.py<br/>Planner & Synthesizer Client<br/>(Supports MOCK_LLM=true)"]:::llm
+            LLM_MOD["app/llm.py<br/>Planner & Synthesizer Client<br/>"]:::llm
         end
 
         subgraph STORAGE["Persisted Storage Volume"]
-            SQLITE[("SQLite (shop.db)<br/>• products & products_fts<br/>• shoppers & orders<br/>• sessions & audit_traces")]:::db
-            VECTOR[("ChromaDB / FAISS<br/>Multilingual Product<br/>Embeddings")]:::db
+            SQLITE[("SQLite (shop.db)<br/>• products & products_fts<br/>• shoppers & orders<br/> • sessions & audit_traces")]:::db
+            VECTOR[(" ChromaDB<br/>Multilingual Product<br/>Embeddings")]:::db
         end
     end
 
