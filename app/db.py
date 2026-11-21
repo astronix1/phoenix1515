@@ -137,7 +137,17 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             for p in products:
-                specs_str = json.dumps(p.get("specs", {})) if isinstance(p.get("specs"), dict) else str(p.get("specs", "{}"))
+                title = p.get("title") or p.get("name") or "Product"
+                desc = p.get("description", "")
+                cat = p.get("category", "General")
+                brand = p.get("brand", "Generic")
+                price = float(p.get("price") if p.get("price") is not None else p.get("price_inr", 0.0))
+                currency = p.get("currency", "INR")
+                stock = int(p.get("stock_quantity") if p.get("stock_quantity") is not None else p.get("stock", 0))
+                rating = float(p.get("rating", 0.0))
+                raw_specs = p.get("specs") if p.get("specs") is not None else p.get("attributes", {})
+
+                specs_str = json.dumps(raw_specs) if isinstance(raw_specs, dict) else str(raw_specs)
                 tags_str = json.dumps(p.get("tags", [])) if isinstance(p.get("tags"), list) else str(p.get("tags", "[]"))
                 multi_str = json.dumps(p.get("multilingual_titles", {})) if isinstance(p.get("multilingual_titles"), dict) else str(p.get("multilingual_titles", "{}"))
 
@@ -158,14 +168,14 @@ class DatabaseManager:
                     multilingual_titles=excluded.multilingual_titles;
                 """, (
                     p["product_id"],
-                    p["title"],
-                    p["description"],
-                    p["category"],
-                    p["brand"],
-                    float(p["price"]),
-                    p.get("currency", "INR"),
-                    int(p.get("stock_quantity", 0)),
-                    float(p.get("rating", 0.0)),
+                    title,
+                    desc,
+                    cat,
+                    brand,
+                    price,
+                    currency,
+                    stock,
+                    rating,
                     specs_str,
                     tags_str,
                     multi_str,

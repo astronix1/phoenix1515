@@ -33,14 +33,19 @@ class SimpleVectorIndex:
     def add_documents(self, documents: List[Dict[str, Any]]):
         for doc in documents:
             doc_id = doc["product_id"]
-            # Rich document text representation
-            text = f"{doc['title']} {doc['description']} {doc['category']} {doc['brand']} "
+            title = doc.get("title") or doc.get("name", "")
+            desc = doc.get("description", "")
+            cat = doc.get("category", "")
+            brand = doc.get("brand", "")
+            text = f"{title} {desc} {cat} {brand} "
             for k, v in doc.get("multilingual_titles", {}).items():
                 text += f"{v} "
             for tag in doc.get("tags", []):
                 text += f"{tag} "
-            for k, v in doc.get("specs", {}).items():
-                text += f"{k} {v} "
+            specs = doc.get("specs") if doc.get("specs") is not None else doc.get("attributes", {})
+            if isinstance(specs, dict):
+                for k, v in specs.items():
+                    text += f"{k} {v} "
 
             tokens = self._tokenize(text)
             tf: Dict[str, float] = {}
