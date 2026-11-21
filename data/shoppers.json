@@ -1,0 +1,111 @@
+{
+  "shoppers": [
+    {
+      "customer_id": "C001",
+      "name": "Rahul Sharma",
+      "email": "rahul.sharma@example.com",
+      "loyalty_tier": "Platinum",
+      "address": "42 Indiranagar, Bengaluru, KA 560038"
+    },
+    {
+      "customer_id": "C002",
+      "name": "Priya Patel",
+      "email": "priya.patel@example.com",
+      "loyalty_tier": "Gold",
+      "address": "15 CG Road, Ahmedabad, GJ 380009"
+    },
+    {
+      "customer_id": "C003",
+      "name": "Amit Verma",
+      "email": "amit.verma@example.com",
+      "loyalty_tier": "Silver",
+      "address": "78 Gomti Nagar, Lucknow, UP 226010"
+    },
+    {
+      "customer_id": "C004",
+      "name": "Sneha Roy",
+      "email": "sneha.roy@example.com",
+      "loyalty_tier": "Bronze",
+      "address": "12 Salt Lake, Kolkata, WB 700091"
+    },
+    {
+      "customer_id": "C005",
+      "name": "Vikram Rao",
+      "email": "vikram.rao@example.com",
+      "loyalty_tier": "Platinum",
+      "address": "89 Jubilee Hills, Hyderabad, TS 500033"
+    }
+  ],
+  "orders": [
+    {
+      "order_id": "ORD-9021",
+      "customer_id": "C001",
+      "product_id": "ELEC-LAP-001",
+      "quantity": 1,
+      "total_amount": 134900.0,
+      "order_status": "Delivered",
+      "order_date": "2026-11-10",
+      "tracking_number": "TRK-BLR-88192"
+    },
+    {
+      "order_id": "ORD-9022",
+      "customer_id": "C001",
+      "product_id": "ELEC-AUD-002",
+      "quantity": 1,
+      "total_amount": 24900.0,
+      "order_status": "Shipped",
+      "order_date": "2026-11-19",
+      "tracking_number": "TRK-DEL-44102"
+    },
+    {
+      "order_id": "ORD-8411",
+      "customer_id": "C002",
+      "product_id": "FOOT-RUN-001",
+      "quantity": 1,
+      "total_amount": 10495.0,
+      "order_status": "Delivered",
+      "order_date": "2026-11-05",
+      "tracking_number": "TRK-AMD-11928"
+    },
+    {
+      "order_id": "ORD-8412",
+      "customer_id": "C002",
+      "product_id": "HOME-KIT-001",
+      "quantity": 1,
+      "total_amount": 8499.0,
+      "order_status": "Processing",
+      "order_date": "2026-11-20",
+      "tracking_number": "TRK-MUM-77312"
+    },
+    {
+      "order_id": "ORD-7301",
+      "customer_id": "C003",
+      "product_id": "ELEC-PHO-004",
+      "quantity": 1,
+      "total_amount": 11990.0,
+      "order_status": "Delivered",
+      "order_date": "2026-10-25",
+      "tracking_number": "TRK-LKO-99302"
+    },
+    {
+      "order_id": "ORD-6101",
+      "customer_id": "C004",
+      "product_id": "APP-WOM-001",
+      "quantity": 1,
+      "total_amount": 7999.0,
+      "order_status": "Delivered",
+      "order_date": "2026-10-15",
+      "tracking_number": "TRK-CCU-55201"
+    },
+    {
+      "order_id": "ORD-5201",
+      "customer_id": "C005",
+      "product_id": "ELEC-PHO-002",
+      "quantity": 1,
+      "total_amount": 129999.0,
+      "order_status": "Delivered",
+      "order_date": "2026-11-01",
+      "tracking_number": "TRK-HYD-66190"
+    }
+  ]
+}
