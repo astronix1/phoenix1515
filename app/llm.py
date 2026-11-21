@@ -40,185 +40,62 @@ class LLMClient:
             prompt = self._build_planner_prompt(query, history, normalized_filters)
             raw_response = self._call_llm(prompt)
             parsed = self._extract_json_from_response(raw_response)
-            if parsed and "intent" in parsed:
-                # Merge with normalized filters
-                merged_filters = dict(normalized_filters or {})
-                merged_filters.update(parsed.get("filters", {}))
-                parsed["filters"] = merged_filters
+            if isinstance(parsed, dict) and isinstance(parsed.get("search_query"), str):
+                from app.schemas import Filters
+                parsed["filters"] = Filters.model_validate(parsed.get("filters") or {}).model_dump(exclude_none=True)
+                parsed["filters"].update(normalized_filters or {})
                 return parsed
-        except Exception:
+        except (ValueError, OSError, KeyError, IndexError, TypeError):
             pass
-
         return self._mock_plan(query, history, normalized_filters)
 
-    def synthesize_response(
-        self,
-        query: str,
-        intent: str,
-        products: List[Dict[str, Any]],
-        orders: List[Dict[str, Any]],
-        active_filters: Dict[str, Any],
-        history: Optional[List[Dict[str, Any]]] = None,
-    ) -> str:
-        """Synthesizes a grounded, customer-facing response based strictly on retrieved facts."""
-        if self.mock_mode or not self.api_key:
-            return self._mock_synthesize(query, intent, products, orders, active_filters)
-
-        try:
-            prompt = self._build_synthesizer_prompt(query, intent, products, orders, active_filters, history)
-            return self._call_llm(prompt)
-        except Exception:
-            return self._mock_synthesize(query, intent, products, orders, active_filters)
-
-    # Mock Rule-Based Planner & Synthesizer
-    def _mock_plan(
-        self,
-        query: str,
-        history: Optional[List[Dict[str, Any]]],
-        normalized_filters: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+    def _mock_plan(self, query, history, normalized_filters):
         filters = dict(normalized_filters or {})
-        q_lower = query.lower()
+        intent = "product_search"
+        if re.search(r"\b(compare|comparison|difference between|vs)\b", query, re.I):
+            intent = "product_comparison"
+        cleaned = re.sub(r"(?:under|below|above|up to|budget(?: of)?|less than|more than|max(?:imum)?|min(?:imum)?)\s*[$₹]?\s*\d+(?:\.\d+)?\s*(?:k|thousand|inr|usd)?", " ", query, flags=re.I)
+        cleaned = re.sub(r"\b\d+(?:\.\d+)?\s*(?:gb|tb|stars?)\b(?:\s*(?:ram|storage|ssd))?|\bsize\s*\w+", " ", cleaned, flags=re.I)
+        return {"intent": intent, "search_query": cleaned, "filters": filters}
 
-        # Intent Detection
-        # 1. Order status
-        if any(w in q_lower for w in ["order", "track", "delivery", "shipping", "bought", "purchased"]):
-            return {
-                "intent": "order_status",
-                "search_query": query,
-                "filters": filters,
-                "product_ids_to_compare": [],
-            }
-
-        # 2. Product Comparison
-        compare_match = re.search(r"(?i)\b(?:compare|difference between|vs\.?)\s+(.+?)(?:\s+and\s+|\s+with\s+|\s+vs\.?\s+)(.+)", query)
-        if compare_match or "compare" in q_lower or " vs " in q_lower:
-            return {
-                "intent": "product_comparison",
-                "search_query": query,
-                "filters": filters,
-                "product_ids_to_compare": [],
-            }
-
-        # 3. Category & Brand extraction
-        brands = ["apple", "samsung", "sony", "dell", "nike", "adidas", "logitech", "hp", "lenovo", "bose"]
-        for b in brands:
-            if b in q_lower:
-                filters["brand"] = b.capitalize()
-
-        categories = {
-            "laptop": "Electronics",
-            "phone": "Electronics",
-            "smartphone": "Electronics",
-            "headphone": "Electronics",
-            "shoes": "Footwear",
-            "sneakers": "Footwear",
-            "shirt": "Apparel",
-            "jacket": "Apparel",
-            "saree": "Apparel",
-            "vacuum": "Home & Kitchen",
-            "coffee": "Home & Kitchen",
-            "tea": "Groceries",
-        }
-        for kw, cat in categories.items():
-            if kw in q_lower:
-                filters["category"] = cat
-                break
-
-        # Extract stripped search terms (removing filter phrases like 'under 50000', 'in stock')
-        clean_search = re.sub(r"(?i)\b(under|below|above|less than|more than|budget|price|rating|in stock|star|stars|\$|₹|inr|rs)\b.*", "", query).strip()
-        if not clean_search:
-            clean_search = query
-
-        return {
-            "intent": "product_search",
-            "search_query": clean_search,
-            "filters": filters,
-            "product_ids_to_compare": [],
-        }
-
-    def _mock_synthesize(
-        self,
-        query: str,
-        intent: str,
-        products: List[Dict[str, Any]],
-        orders: List[Dict[str, Any]],
-        active_filters: Dict[str, Any],
-    ) -> str:
-        # Order Status Response
-        if intent == "order_status":
-            if not orders:
-                return "You do not have any past orders in our records, or no orders matched your request."
-            lines = ["Here are your recent orders:"]
-            for o in orders:
-                title = o.get("product_title") or f"Product #{o.get('product_id')}"
-                lines.append(f"• **Order {o['order_id']}**: {title} (Qty: {o['quantity']}) - Status: **{o['order_status']}** (Placed on {o['order_date']})")
-            return "\n".join(lines)
-
-        # Product Comparison Response
-        if intent == "product_comparison":
-            if len(products) < 2:
-                if products:
-                    return f"Found only one matching item: **{products[0]['title']}** (₹{products[0]['price']}). Please specify another product to compare with."
-                return "I couldn't find the products you wanted to compare. Please provide specific model names or SKUs."
-
-            p1, p2 = products[0], products[1]
-            lines = [
-                f"### Comparison: {p1['title']} vs {p2['title']}",
-                f"- **Brand**: {p1['brand']} vs {p2['brand']}",
-                f"- **Price**: {p1.get('currency', 'INR')} {p1['price']:,} vs {p2.get('currency', 'INR')} {p2['price']:,}",
-                f"- **Rating**: ⭐ {p1['rating']} vs ⭐ {p2['rating']}",
-                f"- **In Stock**: {'Yes (' + str(p1['stock_quantity']) + ')' if p1['stock_quantity'] > 0 else 'No'} vs {'Yes (' + str(p2['stock_quantity']) + ')' if p2['stock_quantity'] > 0 else 'No'}",
-            ]
-            if p1.get("specs") or p2.get("specs"):
-                lines.append(f"- **Key Specs ({p1['brand']})**: {', '.join(f'{k}: {v}' for k, v in list(p1.get('specs', {}).items())[:3])}")
-                lines.append(f"- **Key Specs ({p2['brand']})**: {', '.join(f'{k}: {v}' for k, v in list(p2.get('specs', {}).items())[:3])}")
-            return "\n".join(lines)
-
-        # Product Search / Recommendation Response
-        if not products:
-            filter_desc = []
-            if "max_price" in active_filters:
-                filter_desc.append(f"price under ₹{active_filters['max_price']}")
-            if "min_rating" in active_filters:
-                filter_desc.append(f"rating >= {active_filters['min_rating']}")
-            if "category" in active_filters:
-                filter_desc.append(f"category '{active_filters['category']}'")
-            if active_filters.get("in_stock_only"):
-                filter_desc.append("in-stock only")
-
-            crit = f" matching {', '.join(filter_desc)}" if filter_desc else ""
-            return f"I couldn't find any products{crit}. Try widening your price range or relaxing your search filters."
-
-        lines = [f"Found **{len(products)}** option{'s' if len(products) > 1 else ''} matching your request:"]
-        for p in products[:5]:
-            stock_str = f"In Stock ({p['stock_quantity']} left)" if p["stock_quantity"] > 0 else "Out of Stock"
-            spec_summary = ""
-            if p.get("specs"):
-                spec_summary = " | " + ", ".join(f"{k}: {v}" for k, v in list(p["specs"].items())[:2])
-            lines.append(
-                f"• **{p['title']}** - **{p.get('currency', 'INR')} {p['price']:,}** (⭐ {p['rating']}) - {stock_str}{spec_summary}\n  _{p['description'][:110]}..._"
-            )
-        return "\n".join(lines)
+    def reason_field(self, query, filters):
+        """The model may select a verified field to highlight, never supply its value."""
+        default = "price" if "max_price" in filters else "rating"
+        if self._has_remote_llm():
+            try:
+                prompt = ("Choose one catalogue field to explain this shopping request. "
+                          "Return JSON with field equal to price, rating or brand. Request: " + json.dumps(query))
+                choice = self._extract_json_from_response(self._call_llm(prompt))
+                if isinstance(choice, dict) and choice.get("field") in ("price", "rating", "brand"):
+                    return choice["field"]
+            except (ValueError, OSError, KeyError, IndexError, TypeError):
+                pass
+        return default
 
     # Remote LLM Invocation Helpers
     def _call_llm(self, prompt: str) -> str:
         # Check Google Gemini API
         if self.gemini_api_key:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_model}:generateContent?key={self.gemini_api_key}"
-            req_data = json.dumps({
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2}
-            }).encode("utf-8")
-            req = urllib.request.Request(
-                url,
-                data=req_data,
-                headers={"Content-Type": "application/json"},
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                res = json.loads(resp.read().decode("utf-8"))
-                return res["candidates"][0]["content"]["parts"][0]["text"]
+            initial_model = self.gemini_model if self.gemini_model not in ["gemini-2.0-flash", ""] else "gemini-2.5-flash"
+            models_to_try = [initial_model, "gemini-2.5-flash", "gemini-flash-latest"]
+            for m in models_to_try:
+                try:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={self.gemini_api_key}"
+                    req_data = json.dumps({
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {"temperature": 0.2}
+                    }).encode("utf-8")
+                    req = urllib.request.Request(
+                        url,
+                        data=req_data,
+                        headers={"Content-Type": "application/json"},
+                        method="POST"
+                    )
+                    with urllib.request.urlopen(req, timeout=15) as resp:
+                        res = json.loads(resp.read().decode("utf-8"))
+                        return res["candidates"][0]["content"]["parts"][0]["text"]
+                except Exception:
+                    continue
 
         # Check Ollama
         if self.ollama_url and not self.api_key:
@@ -263,32 +140,13 @@ class LLMClient:
         return f"""You are an e-commerce assistant planner. Analyze the user query and return valid JSON with:
 1. "intent": one of ["product_search", "product_comparison", "order_status", "clarification", "general_info"]
 2. "search_query": cleaned product search term
-3. "filters": object containing any extracted filters (max_price, min_price, category, brand, in_stock_only, min_rating)
+3. "filters": object containing any extracted filters (max_price, min_price, category, brand, in_stock_only, min_rating). Note: valid categories are strictly ["Electronics", "Footwear", "Sports & Outdoors", "Fashion", "Home & Kitchen", "Beauty & Care"]. Do not use product names like 'phone' or 'laptop' as category.
 4. "product_ids_to_compare": list of product identifiers or names if comparing
 
-User Query: "{query}"
+Previous public search context: {json.dumps(history or [])}
+User Query: {json.dumps(query)}
 Normalized Filters: {json.dumps(normalized_filters or {})}
 Output ONLY raw JSON with no markdown backticks."""
-
-    def _build_synthesizer_prompt(
-        self,
-        query: str,
-        intent: str,
-        products: List[Dict[str, Any]],
-        orders: List[Dict[str, Any]],
-        active_filters: Dict[str, Any],
-        history: Optional[List[Dict[str, Any]]],
-    ) -> str:
-        return f"""You are Phoenix, a helpful and strictly grounded e-commerce assistant.
-Answer the user's question using ONLY the provided facts. Do not invent products, prices, or specs not listed below.
-
-User Query: "{query}"
-Intent: {intent}
-Retrieved Products: {json.dumps(products[:6], indent=2)}
-Customer Orders: {json.dumps(orders, indent=2)}
-Active Filters: {json.dumps(active_filters)}
-
-Provide a concise, user-friendly markdown response."""
 
     def _extract_json_from_response(self, text: str) -> Optional[Dict[str, Any]]:
         try:

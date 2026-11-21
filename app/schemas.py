@@ -1,54 +1,36 @@
 """Pydantic Contracts & Validation Schemas for Phoenix Shopper Assistant."""
 
 from typing import Any, Dict, List, Literal, Optional
-try:
-    from pydantic import BaseModel, Field
-except ImportError:
-    class BaseModel:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-        def model_dump(self) -> Dict[str, Any]:
-            res = {}
-            for k, v in self.__dict__.items():
-                if isinstance(v, list):
-                    res[k] = [item.model_dump() if hasattr(item, "model_dump") else item for item in v]
-                elif hasattr(v, "model_dump"):
-                    res[k] = v.model_dump()
-                else:
-                    res[k] = v
-            return res
-        def __repr__(self):
-            return f"{self.__class__.__name__}({self.__dict__})"
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
-    def Field(default=None, default_factory=None, **kwargs):
-        if default_factory is not None:
-            return default_factory()
-        return default
+AnswerType = Literal["recommendation", "comparison", "clarification", "product_fact", "not_found", "refusal"]
 
 
-
-AnswerType = Literal[
-    "product_recommendation",
-    "product_comparison",
-    "order_status",
-    "clarification",
-    "guardrail_blocked",
-    "general_info",
-]
+class Filters(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    min_price: Optional[float] = Field(None, ge=0)
+    max_price: Optional[float] = Field(None, ge=0)
+    min_rating: Optional[float] = Field(None, ge=0, le=5)
+    category: Optional[str] = None
+    brand: Optional[str] = None
+    size: Optional[str] = Field(None, coerce_numbers_to_str=True)
+    colour: Optional[str] = Field(None, validation_alias=AliasChoices("colour", "color"))
+    storage_gb: Optional[int] = Field(None, gt=0)
+    ram_gb: Optional[int] = Field(None, gt=0)
+    in_stock_only: Optional[bool] = None
 
 
 class ProductBase(BaseModel):
     product_id: str = Field(..., description="Unique product SKU or identifier")
-    title: str = Field(..., description="Product title")
+    title: str = Field(..., validation_alias=AliasChoices("title", "name"), description="Product title")
     description: str = Field(..., description="Detailed product description")
     category: str = Field(..., description="Category, e.g. Electronics, Footwear")
     brand: str = Field(..., description="Manufacturer or brand")
-    price: float = Field(..., ge=0, description="Product price in currency unit")
+    price: float = Field(..., ge=0, allow_inf_nan=False, validation_alias=AliasChoices("price", "price_inr"), description="Product price in currency unit")
     currency: str = Field(default="INR", description="Currency symbol/code, e.g. INR, USD")
-    stock_quantity: int = Field(default=0, ge=0, description="Available stock count")
+    stock_quantity: int = Field(default=0, ge=0, validation_alias=AliasChoices("stock_quantity", "stock"), description="Available stock count")
     rating: float = Field(default=0.0, ge=0.0, le=5.0, description="Average customer rating out of 5")
-    specs: Dict[str, Any] = Field(default_factory=dict, description="Key-value specifications (RAM, color, size, etc.)")
+    specs: Dict[str, Any] = Field(default_factory=dict, validation_alias=AliasChoices("specs", "attributes"), description="Key-value specifications (RAM, color, size, etc.)")
     tags: List[str] = Field(default_factory=list, description="Keywords and tags")
     multilingual_titles: Dict[str, str] = Field(
         default_factory=dict, description="Translations/local names (e.g. hi, es, hinglish)"
@@ -60,6 +42,9 @@ class ProductCreate(ProductBase):
 
 
 class ProductSummary(BaseModel):
+    name: str
+    in_stock: bool
+    reason: str
     product_id: str
     title: str
     category: str
@@ -96,11 +81,25 @@ class OrderItem(BaseModel):
 class ChatRequest(BaseModel):
     session_id: Optional[str] = Field(default=None, description="Session ID for ongoing conversation context")
     customer_id: Optional[str] = Field(default=None, description="Shopper identity (required for private order queries)")
-    query: str = Field(..., min_length=1, description="Shopper natural language message")
-    filters: Optional[Dict[str, Any]] = Field(default=None, description="Optional explicit hard filters")
+    query: str = Field(..., min_length=1, validation_alias=AliasChoices("message", "query"), description="Shopper natural language message")
+    filters: Optional[Filters] = None
+
+    @field_validator("query")
+    @classmethod
+    def check_message(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Message must contain text")
+        return value.strip()
+
+
+class Source(BaseModel):
+    product_id: str
+    fields: List[str]
 
 
 class ChatResponse(BaseModel):
+    sources: List[Source] = Field(default_factory=list)
+    follow_up_question: Optional[str] = None
     trace_id: str = Field(..., description="Unique audit trace identifier for debugging")
     session_id: str = Field(..., description="Conversation session ID")
     customer_id: Optional[str] = Field(default=None)

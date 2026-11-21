@@ -28,7 +28,7 @@ class InjectionSanitizer:
     """Detects and mitigates prompt injections, jailbreaks, and system override attempts."""
 
     INJECTION_PATTERNS = [
-        r"(?i)\bignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts|rules|directives)",
+        r"(?i)\bignore\s+(all\s+)?(previous|prior|above|your)\s+(instructions|prompts|rules|directives)",
         r"(?i)\bdisregard\s+(all\s+)?(previous|prior|above)\s+(instructions|directives)",
         r"(?i)\byou\s+are\s+now\s+(an?\s+)?(unrestricted|dan|jailbreak|evil|system|root)",
         r"(?i)\bmode:\s*dan\b",
@@ -65,56 +65,20 @@ class InjectionSanitizer:
 class CustomerIdPrivacyGate:
     """Enforces access control for customer personal data and order records."""
 
-    ORDER_INTENT_PATTERNS = [
-        r"(?i)\b(my\s+orders?|order\s+status|track\s+(my\s+)?order|past\s+orders?|purchase\s+history|order\s+details)\b",
-        r"(?i)\bwhere\s+is\s+my\s+(package|order|delivery|item)\b",
-        r"(?i)\b(order|orders)\s+(#?[a-z0-9\-_]+)",
-        r"(?i)\b(customer|shopper)\s+([a-z0-9\-_]+)",
-    ]
-
     @classmethod
     def is_order_related_query(cls, text: str) -> bool:
-        return any(re.search(pat, text) for pat in cls.ORDER_INTENT_PATTERNS)
+        return bool(re.search(r"\b(orders?|bought|purchased?|purchases|what did .+ buy|track|tracking|purchase history|shopping history)\b|खरीदा|खरीदे|kharid[ae]", text, re.I))
 
     @classmethod
-    def check_access(
-        cls,
-        user_query: str,
-        current_customer_id: Optional[str],
-        requested_customer_id: Optional[str] = None,
-    ) -> GuardrailResult:
-        """Ensures queries accessing order details have valid and matching customer_id."""
-        is_order_query = cls.is_order_related_query(user_query)
-
-        if not is_order_query and not requested_customer_id:
-            return GuardrailResult(passed=True)
-
-        # Check if query attempts to access an explicit foreign customer ID
-        cust_match = re.search(r"(?i)\b(?:customer|shopper|user|cust)\s*[:=]?\s*([a-zA-Z0-9_\-]+)", user_query)
-        target_customer = requested_customer_id or (cust_match.group(1).upper() if cust_match else None)
-
-        if is_order_query:
-            if not current_customer_id:
-                return GuardrailResult(
-                    passed=False,
-                    reason="Authentication Required: A valid customer_id is required to view order history.",
-                    metadata={"missing_customer_id": True},
-                )
-
-            if target_customer and target_customer.upper() != current_customer_id.upper():
-                return GuardrailResult(
-                    passed=False,
-                    reason=f"Privacy Gate Violation: Cannot access orders for customer '{target_customer}' while authenticated as '{current_customer_id}'.",
-                    metadata={
-                        "target_customer": target_customer,
-                        "authenticated_customer": current_customer_id,
-                    },
-                )
-
-        return GuardrailResult(
-            passed=True,
-            metadata={"authenticated_customer": current_customer_id},
-        )
+    def check_access(cls, user_query: str, current_customer_id: Optional[str]) -> GuardrailResult:
+        if not cls.is_order_related_query(user_query):
+            return GuardrailResult(True)
+        ids = re.findall(r"\bC-?\d+\b", user_query, re.I)
+        own = re.search(r"\b(my|mine|i|meine|maine|mera|mere)\b|मेर[ेाी]|मैंने", user_query, re.I)
+        foreign = re.search(r"(?:['’]s\s+(?:past |recent )?(?:orders?|purchases?|history)|\b(?:for|of) (?!my\b|me\b)(?:customer |shopper )?[A-Za-z]+|what did (?!I\b)\w+ buy)", user_query, re.I)
+        if not current_customer_id or any(i.lower() != current_customer_id.lower() for i in ids) or foreign or not (own or ids):
+            return GuardrailResult(False, "I can only show the selected shopper their own orders.")
+        return GuardrailResult(True)
 
 
 class UnitNormalizer:
@@ -126,12 +90,14 @@ class UnitNormalizer:
     @classmethod
     def normalize_query_and_extract_filters(cls, query: str) -> Tuple[str, Dict[str, Any]]:
         filters: Dict[str, Any] = {}
+        query = re.sub(r"(?<=\d),(?=\d)", "", query)
+        query = re.sub(r"(?:₹|rs\.?\s*)?(\d+)\s*(?:रुपये?\s*)?(?:से कम|ke neeche|se kam)", r"under \1", query, flags=re.I)
         normalized = query
 
         # 1. Price extraction: "under $50", "below 50000 inr", "under 50k", "< 1500"
         # Match "under/below/less than/<= $50" or "under 5000" or "under 50k"
         price_under_match = re.search(
-            r"(?i)(?:under|below|less\s+than|budget(?:\s+of)?|max(?:imum)?|<=?)\s*([$₹€£]?)\s*([0-9]+(?:\.[0-9]+)?)\s*(k|thousand|inr|usd|rs\.?|rupees)?",
+            r"(?i)(?:under|below|less\s+than|up\s+to|budget(?:\s+of)?|max(?:imum)?|<=?)\s*([$₹€£]?)\s*([0-9]+(?:\.[0-9]+)?)\s*(k|thousand|inr|usd|rs\.?|rupees)?",
             query,
         )
         if price_under_match:
@@ -171,11 +137,17 @@ class UnitNormalizer:
             filters["ram_gb"] = int(ram_match.group(1))
 
         # 3. Storage extraction: "512gb ssd", "1tb storage", "256gb"
-        storage_match = re.search(r"(?i)\b([0-9]+)\s*(gb|tb)\s*(?:ssd|storage|rom|disk)?\b", query)
-        if storage_match and not ram_match:
-            val = int(storage_match.group(1))
-            unit = storage_match.group(2).lower()
-            filters["storage_gb"] = val * 1024 if unit == "tb" else val
+        storage_text = query[:ram_match.start()] + query[ram_match.end():] if ram_match else query
+        storage_match = re.search(r"(?i)\b([0-9]+)\s*(gb|tb)\b", storage_text)
+        if storage_match:
+            filters["storage_gb"] = int(storage_match[1]) * (1024 if storage_match[2].lower() == "tb" else 1)
+
+        size = re.search(r"\bsize\s*([0-9]+(?:\.5)?|xs|s|m|l|xl|xxl)\b", query, re.I)
+        if size:
+            filters["size"] = size[1]
+        colour = re.search(r"\b(blue|red|green|black|white|yellow|grey|brown|purple|pink|silver)\b", query, re.I)
+        if colour:
+            filters["colour"] = colour[1].lower()
 
         # 4. Rating extraction: "rating > 4", "4 star and above", "4+ stars"
         rating_match = re.search(r"(?i)\b([3-5](?:\.[0-9])?)\s*(?:\+|stars?|\s*rating\s*(?:and\s+above|or\s+more))\b", query)
